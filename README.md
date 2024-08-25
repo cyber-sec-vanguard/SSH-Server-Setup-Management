@@ -109,7 +109,26 @@ Hash the existing hostnames using `ssh-keygen -H`. Test it, then delete the know
 This allows you to start multiple SSH sessions over one TCP connection. Additional sessions should start quickly\n
 `ControlMaster  auto`\n
 `ControlPath    ~/.ssh/sockets/%u@%h:%p # Anyone with access to this direcyory will see that traffic. Use with caution`\n
-It will slow down your sessions. Additionally, X Forwarding doesn't work well.
+It will slow down your sessions. Additionally, X Forwarding doesn't work well.\n
 ### Compression
-It used to be useful. Now, it normally slows down. use `-C` flag to compress.
-
+It used to be useful. Now, it normally slows down. use `-C` flag to compress.\n
+## SSH Keys
+Before I proceed to creating the SSH RSA, and ECDSA keys, I will read the RFC8017, FIPS 186-5, SP 800-57\n
+### RFC 8017
+All of this is regarding RSA, RSAES-OAEP, and RSASSA-PSS.\n
+Quote: "A generally good cryptographic practice is to employ a given RSA key pair in only one scheme. This avoids the risk that vulnerability in one scheme may compromise the security of the other and may be essential to maintain provable security." They gave examples of using RSASSA-PSS with RSA-SSA-PKCS1-v1_5, and RSA-OEAP with RSAES-PKCS1-v1_5\n
+Quote: "RSAES-OAEP is REQUIRED to be supported for new applications; RSAES-PKCS1-v1_5 is included only for compatibilitywith existing applications." I suppose this is down to the tool to use RSAES-OAEP, and support KCKS1-v1_5. The tool here is OpenSSH.\n
+Quote: "Two signature schemes with appendix are specified in this document: RSASSA-PSS and RSASSA-PKCS1-v1_5. Although no attacks are known against RSASSA-PKCS1-v1_5, in the interest of increased robustness, RSASSA-PSS is REQUIRED in new applications. RSASSA-PKCS1-v1_5 is included only for compatibility with existing applications."\n
+Quote: "Typical salt lengths in octets are hLen (the length of the outputof the hash function Hash) and 0. In both cases, the security of RSASSA-PSS can be closely related to the hardness of inverting RSAVP1."\n
+Done.\n
+### FIPS 186-5
+#### DSA
+Quote: "Prior versions of this standard specified the DSA. This standard no longer approves the DSA for digital signature generation. However, the DSA may be used to verify signatures generated prior to the implementation date of this standard. See FIPS 186-4 [7] for the specifications for the DSA.\n
+#### RSA
+Quote: "An RSA digital signature key pair shall not be used for other purposes (e.g., key establishment)."\n
+Quote: "This standard specifies the use of a modulus whose bit length is an even integer and greater than or equal to 2048 bits. Furthermore, this standard specifies that p and q be of the same bit length –namely, half the bit length of n. The maximum security strength of RSA schemes associated with the bit length of the modulus is specified in NIST SP 800-57, Part 1". They did not say that the two prime numbers be of equal, or fairly equal value.\n
+This document refers a lot to SP 800-57, Part 1 :-). It mentioned Part 3 too.\n
+Quote: "rime number generation seeds shall be kept secret or destroyed when the modulus n is computed." Otherwise, kept secret and protected.
+#### ECDSA
+Quote: "ECDSA keys shall not be used for any other purpose (e.g., key establishment)."\n
+When it comes to key strength based on the key length, I see that one may need at least a 256 bit long ECDSA key, in order for him to achieve a 128-bit security strength. 128-bit in symmetric cryptography is good enough and is easy on the hardware.
