@@ -118,7 +118,7 @@ Before I proceed to creating the SSH RSA, and ECDSA keys, I will read the RFC801
 All of this is regarding RSA, RSAES-OAEP, and RSASSA-PSS.\n
 Quote: "A generally good cryptographic practice is to employ a given RSA key pair in only one scheme. This avoids the risk that vulnerability in one scheme may compromise the security of the other and may be essential to maintain provable security." They gave examples of using RSASSA-PSS with RSA-SSA-PKCS1-v1_5, and RSA-OEAP with RSAES-PKCS1-v1_5\n
 Quote: "RSAES-OAEP is REQUIRED to be supported for new applications; RSAES-PKCS1-v1_5 is included only for compatibilitywith existing applications." I suppose this is down to the tool to use RSAES-OAEP, and support KCKS1-v1_5. The tool here is OpenSSH.\n
-Quote: "Two signature schemes with appendix are specified in this document: RSASSA-PSS and RSASSA-PKCS1-v1_5. Although no attacks are known against RSASSA-PKCS1-v1_5, in the interest of increased robustness, RSASSA-PSS is REQUIRED in new applications. RSASSA-PKCS1-v1_5 is included only for compatibility with existing applications."\n
+Quote: "Two signature schemes with appendix are specified in this document: RSASSA-PSS and RSASSA-PKCS1-v1_5. Although no attacks are known against RSASSA-PKCS1-v1_5, in the interest of increased robustness, RSASSA-PSS is REQUIRED in new applications." RSASSA-PKCS1-v1_5 is included only for compatibility.\n
 Quote: "Typical salt lengths in octets are hLen (the length of the outputof the hash function Hash) and 0. In both cases, the security of RSASSA-PSS can be closely related to the hardness of inverting RSAVP1."\n
 Done.\n
 ### FIPS 186-5
@@ -128,7 +128,73 @@ Quote: "Prior versions of this standard specified the DSA. This standard no long
 Quote: "An RSA digital signature key pair shall not be used for other purposes (e.g., key establishment)."\n
 Quote: "This standard specifies the use of a modulus whose bit length is an even integer and greater than or equal to 2048 bits. Furthermore, this standard specifies that p and q be of the same bit length –namely, half the bit length of n. The maximum security strength of RSA schemes associated with the bit length of the modulus is specified in NIST SP 800-57, Part 1". They did not say that the two prime numbers be of equal, or fairly equal value.\n
 This document refers a lot to SP 800-57, Part 1 :-). It mentioned Part 3 too.\n
-Quote: "rime number generation seeds shall be kept secret or destroyed when the modulus n is computed." Otherwise, kept secret and protected.
+Quote: "A CA should use a modulus whose length nlen is equal to or greater than the bit-length of every modulus used by its subscribers. For example, if the subscribers are using nlen = 2048, then the CA should use nlen ≥ 2048. SP 800-57, Parts 1 and 3 [12, 15], provide further information about comparable security strength guidance."\n
+Quote: "Prime number generation seeds shall be kept secret or destroyed when the modulus n is computed." Otherwise, kept secret and protected.
 #### ECDSA
 Quote: "ECDSA keys shall not be used for any other purpose (e.g., key establishment)."\n
-When it comes to key strength based on the key length, I see that one may need at least a 256 bit long ECDSA key, in order for him to achieve a 128-bit security strength. 128-bit in symmetric cryptography is good enough and is easy on the hardware.
+When it comes to key strength based on the key length, I see that one may need at least a 256 bit long ECDSA key, in order for him to achieve a 128-bit security strength. 128-bit in symmetric cryptography is good enough and is easy on the hardware.\n
+Quote: "Normally, a CA should use a bit length of n whose assessed security strength is equal to or greater than the assessed security strength associated with the bit length of n used by its subscribers."\n
+Quote: "Each key pair shall be correctly associated with one specific set of domain parameters. [...]  The domain parameters shall be protected from unauthorized modification until the set is deactivated. [...] The same domain parameters may be used for more than one purpose. [...] However, using different domain parameters reduces the risk that key pairs generated for one purpose could be accidentally used for another purpose." If you don't want to make mistakes, don't allow yourself to. Domain parameters are the EC paramters.\n
+A Kpub's duration of use is greater than the Kpriv's duration of use.\n
+ECDSA keys should only be used to sign and verify.\n
+The security strength of the hash function must be equal or greater than the strength of ECDSA. The strength should be the same.\n
+#### EdDSA
+Quote: "See SP 800-186 for details on curves approved for use with EdDSA.".\n
+Prehash EdDSA seems more interesting than EdDSA. If I am not mistaken, professor ABBAS recommended this.
+EdDSA is deterministic. Ross Anderson said that randomness is always beneficial in cryptography. But it may be better in environments with insufficient randomness.\n
+Quote: "For Ed25519, SHA-512 shall be used. For Ed448, SHAKE256 (as specified in FIPS 202) shall be used."\n
+### SP 800-57 Part1 Revision 5
+#### Cryptoperiods
+Kpriv-sig and auth: Quote: "a maximum cryptoperiod of about one to three years is recommended."\n
+    Kpub-sig-ver and auth: several years. One should consider that, with time, a cryptosystem and a key will get more vulnerable. Signature verefication may continue so long as the Kpriv was used in its cryptoperiod.\n
+    Symmetric authentication keys: for sensitive information, one may use one key per information. The originator may use it for a maximum of two years. The recipient may use it to verify for a maximum of three years after the key's no longer in use.\n
+    Symmetric encryption: if the key is used to encrypt large voluments of data, it's period should be short, a day to a week. If it encrypts less data over time, it may be longer, up to two years. The recipient should use it for no longer than three years after the period. For keys that are used to encrypt a single emssage or a session, the data may be kept until the data is encrypted nuder a new key, or is destroyed.\n
+    Assymetric key-wrapping keys: If the key is used to devlier a lot of keys, it should last for one day to a week. Otherwise, it can be used up to two years.\n
+    Symmetric master key: may be one year.\n
+#### Compromise countermeasures
+Don't leave it in plaintext; set access controls; use of physically protected containers, such as HSM; use integrity checks; ensure that the proper key is established; log access to keys; provide a cryptographic integrity check mechanism, such as MACs and dig signatures; use trusted timestamps; destroy keys after period; create a compromise-recovery plan.\n
+Design the system so that the compromsie of one key will have as little damage as possible.\n
+The recovery plan should include:
+    1.  An identification of the personnel to notify and what the notification should contain.\n
+    2.  An identification of the personnel to perform the recovery actions;\n
+    3.  The method for obtaining a new key\n
+    4.  An inventory of all cryptographic keys\n
+    5.  OpSec\n
+    6.  An identification of all personnel needed to support the compromise-recovery procedures;\n
+    7.  Request key revocation;
+    8.  Monitor re-keying;
+    9.  additions...
+#### Key length
+RSA : 3072-bit key is estimated be acceptable beyond 2031\n
+ECDSA and ECHD: 256-383 is also estimated.\n
+DH: Kpub of 3072-bit and Kpriv of 256. estimated.\n
+AES: 128. estimated\n
+\n
+As for Hash functions: SHA-256, SHA-512/256, and SHA3-256. I consider SHA3 to be better because it is not built on top of MD5. For HMAC, SHA-1 and KMAC128. estimated. I dislike SHA1, go for SHA3-224.\n
+#### Cipher Suits Security
+The strength of a cipher suit is also tied to the key generation process.\n
+Refer to the previous Key Length section.
+#### Considering the future
+This is but an estimate.\n
+Go for 128 bit sec strength to be acceptable beyond 2031.\n
+Be flexible, and plan well for the future.
+Quote: "Typically, an organization selects the cryptographic services that are needed for a particular application. Then, based on the algorithm security lifetime and the security life of the data to be protected, an algorithm and key-size suite that are sufficient to meet the requirements are selected. The organization then establishes a key-management system, including validated cryptographic products that provide the services required by the application. As an algorithm and/or key-size suite nears the end of its security lifetime, transitioning to a new algorithm and key-size suite should be planned."\n
+Talking about the future, quote: "In addition, the recovered plaintext could be used to attempt a matched plaintext-ciphertext attack on the new algorithm.\n
+You should consider the protection lifetime of your data. If the algorithm security lifetime of an encryption algorithm ends on December 31, 2030, then data with a security life of four years should not be encrypted using that algorithm after December 31, 2026.\n
+Quote: "The process of transitioning to a new algorithm or key size may be as simple as selecting a more secure option in the security suites offered by the current system, or it can be as complex as building an entirely new system."\n
+Quote: "The lessons to be learned are that an encryption mechanism used for information that will be available to unauthorized entities in its encrypted form (e.g., via transmission) should provide a high level of security protection, and the use of each key should be limited (i.e., the cryptoperiod should be short) so that a compromised key cannot be used to reveal very much information. If the algorithm itself is broken, 75 an adversary is forced to perform more work to decrypt all of the information when each key is used to encrypt a very limited amount of information."\n
+### Key protection
+IT is always better to use an HSM of FIPS 140 level 4. Level 3 is unacceptable unless fortified.\n
+You should backup your keys for availability.
+### Pre-operational phase of a key
+The key's owner needs to deal with a registration authority to register himsefl in the system. The CA's strength (or weakness) of a security infrastructure will often depend upon the identification process. FIPS 201 and SP 800-63 address requirements for establishing identity.\n 
+With this section, I will surely revise my PKIX project. Insha'Allah.\n
+The CA must have a secure system for operations. It must consider algorithm preferences, the identification of trusted parties, and the definition of domain-parameter policies and any trusted parameters  (e.g., recognized certificate policies).\n
+The entity needs to set up its keys and comply with the CA's preferences.\n
+The distribution of the public key shall provide assurance to the receiver that:\n
+    1. The purpose/usage of the key is known;\n
+    2. Any parameters associated with the public key are known;\n
+    3. The public key is valid; and\n
+    4. The owner actually possesses the corresponding private key.\n
+The CA's public key must be authenticated.\n
+Trust-anchor certificates are often embedded within an application and distributed with the application. The entity relies upon the authenticity of the software distribution mechanism to ensure that only valid trust-anchor certificates are installed during installation or replacement.\n
