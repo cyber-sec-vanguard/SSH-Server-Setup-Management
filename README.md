@@ -133,29 +133,29 @@ Set this configurations:\
 `PubkeyAuthentication               yes`\
 ### Agent forwarding
 You use it to extend the trust to the SSH server and allow it to use decrypt your private key without any pp. This is useful in that it allows you to access certain services from it that you can't access from your localhost. That is considering Availability. But considering Confidentialiy and Integrity, I highly discourage this./
-# X Forwarding
+## X Forwarding
 One good thing about the X protocol is that it allows you to display graphics on your localhost, while the program is running on a different machine. Don't use it with machines you don't trust, a compromised machine's user may be capable of accessing your machine as if it was you. X is not secure.\
 Cross-site Forwarding may not be a very good idea due to latency. There are better alternatives to X though.\
 In this protocol, the client is the machine that runs the code that generates the display, while the server shows the display.\
 Install xauth and xterm on the SSH server, and set `X11Forwarding yes`. On the client, set `ForwardX11 yes`. This gives you the basics and is somewhat secure. If you want to enable all X features then --actually no, I won't tell you. This is insecure.\
 Even better than this is to enable X Forwarding to certain SSh servers only, whether using Host keyword, or through CLI. To sue the latter, use `ssh -CX hostname`.\
-# TCP Forwarding
+## TCP Forwarding
 You can run any insecure TCP protocol on a secure SSH service.\
 TCP Forwarding can be used to evade security and break the policy. Personally, I dislike it. I may use it though :-).\
 You'll need OpSec, and intrustion and extrusion detection. Refer to Richard Bejtlich's book on it, and Network Flow Analysis by this author.\
-## Troubleshooting
+### Troubleshooting
 A server should respond to a netcat request over a forwardded port the same way as a request over a non forwarded port. If not, then you probably have misconfigured port forwarding. Check your configuration and consult the journal.\
 Know that this is but a tool. Some protocols don't work withit.\
-## Local port forwarding
+### Local port forwarding
 In local port forwarding, you will connect two different ports, from two different addresses. One of the ports is local, and the other is remote. Anything that is served through the remote port will arrive to you through your local port. To do this:\
 `ssh -L localIP:localPort:remoteIP:remotePort servername`. In some cases, the remoteIP==localIP==127.0.0.1.\ 
 Or in the config file:
 `Host servername`\
 `   LocalForward localIP:localPort remoteIP:remotePort`
-## Remote forwarding
+### Remote forwarding
 This is mainly used to evade a firewall. In this case, anyone that connects to the remote port will connect to your local port. You may use this to connect to your work station from home, or to your personal machine from work. This raises some security concerns. So long as your connection to the server remains open, anyone can connect to your machine.\
 To use it, add -R flag, or replace LocalForward with RemoteForward.\
-## Dynamic forwarding
+### Dynamic forwarding
 You turn a port on your machine onto a SOCKS proxy server, and anything that is sent to it will be forwarded to the SSh server.\
 `ssh -D localIP:localPort servername`\
 or\
@@ -168,6 +168,18 @@ Or to yes, or to `local`, or to `remote`.\
 `GatewayPorts` exists on both servers and clients. It controls local forwarding for clients , and remote forwarding for servers. Setting it to `yes` on clients means that ssh can listen on any local port. Setting it to `yes` on server means that anyone will bind to all port, which is stupid. Setting it to `clientspecified` on the server will allow the client to connect to what he chose.\
 You can have more control through `PermitOpen hostname:port hostname:port ...` in sshd_config. everything else will be forbidden.\
 You can set a `ExitOnForwardFailure` to `yes` on the client to tell it to drop the connection if the port forwarding fails.\
+## KEeping connection alive
+TCP and SSH connections are terminated after a while of IDLE. The way to keep it alive is to send some lightweight packets. OpenSSH does this by default using the TCProtocol, you can turn it in sshd_config off by:\
+`TCPKeepAlive   no  # Why would you?`\
+IT can also be done through OpenSSH, its keepalives are much more flexible than TCP's. It is also more lickely to hodl a session open even through a lengthy router reboot. OpenSSH uses TCP keepalives by default, not OpenSSh. You can configure the server and client to use them. For the server:\
+`ClientAliveInterval    90  # not more than 120 seconds!`\
+`ClientAliveCountMax    5   # Max missed keepalive packets before the server terminates the connection`\
+As for the server:\
+`ServerAliveInterval    90`\
+`ServerAliveCountMax    4   # Same as server byt the client terminates the session, not connection.`\
+The second setting is great. If the server or client goes down, the connection will also go down eventually. Otherwise, you may have many sshd services running in the void.\
+## Key Distribution
+
 ### RFC 8017
 All of this is regarding RSA, RSAES-OAEP, and RSASSA-PSS.\n
 Quote: "A generally good cryptographic practice is to employ a given RSA key pair in only one scheme. This avoids the risk that vulnerability in one scheme may compromise the security of the other and may be essential to maintain provable security." They gave examples of using RSASSA-PSS with RSA-SSA-PKCS1-v1_5, and RSA-OEAP with RSAES-PKCS1-v1_5\n
