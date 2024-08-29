@@ -179,7 +179,75 @@ As for the server:\
 `ServerAliveCountMax    4   # Same as server byt the client terminates the session, not connection.`\
 The second setting is great. If the server or client goes down, the connection will also go down eventually. Otherwise, you may have many sshd services running in the void.\
 ## Key Distribution
-
+You need some form of automation to distribute the user's keys to your authorized_keys list. Understanding the files helps you do it.\
+The `known_hosts` file contains lines of public key and their corresponding host. The hostname may be hashed. A hostname may have more than one key. Each entry may have other fields, such as an IP address, Markers, key type, key, comment, etc.\
+The file support @CA and @revoked Markers. They must appear first in line. If an entry starts with @cert-authority, it means that this line corresponds to an SSH CA. SSH CAs and TLS CAs differ. We'll discuss them later.\
+To mark a key as revoked, use the @revoked at the beginning. OpenSSH will not accept the key and will generate a warning. This is better than deleting the key, as the user cannot accept it now.\
+After a marker, if any, give the hostname. You can have multiple hostnames in one entry, separated by commas. If a host is accessible via a different port, his hostname will be in [brackets]:portnumber. A hostname may be hashed. If it is hashed, a host's names will be in separate lines. It is good practice to maintain a master known_hosts file in cleartext.\
+Next, it stores the keytype.\
+Next, it stores the Kpub. Often starting with a series of capital As and ends with a (=) sign.\
+Next, it stores a plaintext comment. These are usefl in centralized systems.
+### Managing known_hosts
+It should be created automatically when you connect to a server. You can make these files simple by limiting the keys sshd uses to connect to clients. Make a tool to collect, verify, build and manage a known_hosts file, and make it publicly available.\
+When you create a new sshd key, make sure to distribute it to your users before they connect to the server. Don't normalize warning messages. You better use an automation system like Ansible, Puppet, or any of their competitors. Update the known_hosts file and push it to your users, it shold not take long.\
+The client will check in /etc/ssh/ssh_known_hosts and ~/.ssh/known_hosts. Update these. If any entry matches, the client will accept the connection. Or you could change the name of their personal file. Tell them in advance. Do this to not have conflicting entries.\
+You can use automation to set global OpenSSH configuration. They can still use their personal configuration, though.\
+You may consider using a DNS with Securty Extension to distribute hostnames. I won't go into this section. At least not before I study DNS in details. He has about about it, BTW.\
+### Managing authorized_keys
+Having a centralized distribution system is best practice. If a user wants to upload his file, he must go through an automated system that does integrity check and warns the user of any consequences.\
+Additionally, use the sshd's configuration `AuthorizedKeysFile  /etc/ssh/keys/%u`. This way, an intruder can't edit this file. Use some tool to prevent anyone from writing on this file.\
+You can use LDAP to store the files in a read-only database available accross the network. I don't know LDAP, so I will skip this part, for now at least. Anyway, use any script to parse any directory over any technology and fetch keys. Use `AuthorizedKeysCommand  [script] to run your script with `AuthorizedKeysCommandUser [..]`\
+## Automation
+SSH is great for automation. Many automation tools use SSH. Be cautious, give the automated processes the bare minimum access. You can use the `authorized_keys` to limit what particular users can run via SSH, or through sshd itself. You can also automatically run commands at each user login.\
+You can configure the server to run commands whenever a user login. You can do this to setup his environment. The server will look for shell scripts in the user's ssh file `.ssh/rc`. Otherwise, it looks for scripts in `.ssh/sshrc`. openSSH will handle that script a single X11 Cookie as argument. You can ignore this. sshd_config: `PermitUserRC yes|no`. It defaults to yes.\
+Alternatively, you can limit what the user can run as commands if authenticated using a certain key. This is more flexible. The `authorized_keys` file stats with the algorithm or keytype, Kpub, and comment. You can add commands atthe beginning. Check man sshd for complete list of keywords.\
+Use `command="command"` to run a specific command. You can use this command to see whether the client has ran any suspecious commands. The client's commands are stored in the `$SSH_ORIGINAL_COMMAND` variable.
+Use `environment="NAME=value"` to set env variables. You must set `PermitUserEnvironment` to yes in sshd.\
+Use `from="ssh-pattern"` to make a key usable for authentication if the client address or reverse DNS matches the given pattern. Refer to CH2. Even if an intruder steals a private key, he won't use it unless the pattern match. Use IP addresses so that an intruder does not mess with your DNS and hostnames.\
+Use `no-agent-forwarding`.\
+Use `no-x11-forwarding`.\
+Use `no-pty` to disallow terminals. This may be good for automated programs as they don't need any terminal.\
+Use `no-user-rc` to disallow login script checking. We've discussed this.\
+Use `permitopen="host:port"` to restrict local port forwarding for this hostname, or IP addr, and port. That's if the server permits port forwarding. Example use: `permitopen="localhost:25"`. make it `none` to disallow port forwaring for this key.\
+Use `tunnel="n"` to set a specific tunnel devise (coming soon).\
+By default, everything is not permitted unless explicitely stated otherwise. Use `restrict` to revert that.\
+You can use multiple keywords on one entry, separated by commas.\
+\
+For automated programs, say a monitoring system, give them a key without any passphrase, and control what they can do. You still need some mean of control how these autoamted programs behave. Create a key for it and add it to his account's `authorized_keys`. Test if it works using the `ssh -i filename servername`. Lock the task down by limiting what it can do. Use `restrict` for best practice, then allow what's neccessary. Use `from="[IP]" to make this key usable from this one machine. That's a fine secure setup, add the path to the script it will run.\
+To know which commands your automated program needs, use DEBUG3. If the script is using the agent instead ofits specific key, add this to your SSH command: `-o IdentitiesOnly=yes`.\
+Add `BatchMode  yes` so that the program will not prompt you for any passwds or passphrases, but exists immediately.\
+\
+An alternative to this approach is to use `ForceCommand` in sshd_config file.
+## VPNs
+OpenSSH allows you to create a tunnel for remote workers, in other words, create a VPN. an OpenVPN is definetl y better than OpenSSH VPN, but if you'll use a single TCP port than OpenSSH can be acceptable. A VPN is the most complicated part about OpenSSH. Each Linux Distribution has its tailored OpenSSH's VPN creation approach, and they change quickly. I see this and that OpenVPN is better, I am considering skipping this chapter, for now at least.\
+Yep, I will skip it\
+## Certificate authorities
+This is an OpenSSH feature. One good thing about CA is that you set clients and servers to trust it, use it to sign Kpubs, and everyone trust it will trust what it signs. You need automation to distribute the certificates to your servers and restatf `sshd` on them. OpenSSH CAs have many features, check `man ssh-keygen` for the full list of features. We'll take a look at some.
+### Cryptoperiod
+Refer to cryptoperiods from SP 800-57 Part1 Revision 5. You may want to store the CA's private keys on dedicated hardware. Compromising them is...\
+Use two CAs, one to certify servers and one to sertify clients.\
+Design the system well, you don't want to refactor it when it scales.\
+Store the CA's certs in one directory, like `/usr/local/sshca`.\
+Store the hosts' certs in one directory, and the users' in another. This is less error prone. `/usr/local/sshca/hosts/` and `/usr/local/sshca/users/`.\
+Add a comment to specify the use, and the user of the key.\
+### Trusting the CA
+For sshd, it uses certs to validate certs used for authentication. Set a file with all of your trusted certs in a file, and refer to it in sshd_config using `TrustedUserCAKeys`. This file accepts one CA Kpub per line and accepts comments with #.\
+As for ssh, it uses them to validate hosts' Kpubs, store the CA's keys in  ssh_known_hosts, and the others in known_hosts.\
+To mark a Kpub as a CA's trusted key, add the marker @cert-authority at the beginning, then the hostname pattern that it is valid for, then the key type and key and etc. If the key is valid on multiple domains, separate them using commas and don't use spaces. An example is this:\
+`@cert-authority *.mwl.io,michaelwlucas.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABA...`\
+Add this line to the ssh_known_hosts file on each host and they'll trust Kpubs signed by that CA after sshd restart.\
+Keep a copy of a cert in case you need to revoke it.\
+To sign a certificate, run this command:\
+`ssh-keygen -s /path/to/CA/Kpub -I <cert_id> -n <hostname>,<hostname2>,[...] -V <exp_date> path/to/host/K.pub`\
+Refer to the certificates using `HostCertificate` in sshd_config.\
+Install them on the client's `/etc/ssh/ssh_known_hosts` file, and try it out. You may want to move the $HOME/.ssh/known_host away.\
+Use the ssh_config `RevokedHostKeys` to refer to the revoked certs in a file that has Kpubs one per line. Keep this list updated and live, or at least run a command to check them at login.\
+Review serts by ` ssh-keygen -Lf ssh_host_ed25519_key-cert.pub`\
+\
+The process is mainly the same for user certs. For CRLs, use the sshd_config `RevokedKeys` to refer to the CRL. You may want to inspect KeyRLs in ssh-keygen.\
+SSH certs have extensions too. Extensions are identical to the keywords in authorized_keys file, and server the same purpose. Check them in man ssh-keygen. Here's a key that is only allowed to run one command:\
+`ssh-keygen -s ca_key -I user_backup -n backup -V +52w -O clear -O force-command="/usr/local/scripts/backup.sh" backup.pub`\
+By now, you want to use `AuthorizedKeysFile none` in sshd_config as they're not needed.\
 ### RFC 8017
 All of this is regarding RSA, RSAES-OAEP, and RSASSA-PSS.\n
 Quote: "A generally good cryptographic practice is to employ a given RSA key pair in only one scheme. This avoids the risk that vulnerability in one scheme may compromise the security of the other and may be essential to maintain provable security." They gave examples of using RSASSA-PSS with RSA-SSA-PKCS1-v1_5, and RSA-OEAP with RSAES-PKCS1-v1_5\n
