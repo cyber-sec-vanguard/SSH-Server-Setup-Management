@@ -2,8 +2,10 @@
 In this project, I will set up an SSH server, and manage it. I will do my best to document everything -unlike me other projects. Eventually, I will try to automate this setup and management, resulting in another DevSecOps project.\n
 
 First things first, I will setup an SSH server on my virtual machine.'n
-
-# Documentation
+## Developer's request
+I ask you to kindly review my configuration and help me make it stronger and securer.\
+Additionally, I failed to set up the use of certificates. I spent two days or so trying to fix it, but failed. I can't continue on this project for now, I had other responsibilities to take on. Please help me fix it.
+# Book's summary (SSH Mastery)
 ## Server Simple Configuration
 We will play with the `ssh_config` file, located in `/etc/ssh`. Back it up: `cp sshd_config sshd_config,old`.\n
 I won't get into all keywords, some are obvious, such as `Protocol 2`.\n
@@ -38,7 +40,7 @@ Select what type of logging you want. 'Auth' means authentication related logs. 
 `LogLevel        INFO            # The log level. Some levels violate privacy. This one logs`\
 `   # login and logoff problems.`\
 ### Ciphers and MACs
-I really disliked the default ciphers. Ross Anderson stated in his book that many libraries and tools have unsafe defaults.
+Ross Anderson stated in his book that many libraries and tools have unsafe defaults.
 `Cipher  aes128-gcm@openssh.com, aes256-gcm@openssh.com, aes128-ctr, aes192-ctr, aes256-ctr, aes128-cbc, aes192-cbc, aes256-cbc`\n
 `MACs    hmac-sha2-512, hmac-sha2-256, umac-128@openssh.com, umac-64@openssh.com # I did not study`\n
 `   # study UMAC, IDK whther it is good.`
@@ -192,7 +194,7 @@ It should be created automatically when you connect to a server. You can make th
 When you create a new sshd key, make sure to distribute it to your users before they connect to the server. Don't normalize warning messages. You better use an automation system like Ansible, Puppet, or any of their competitors. Update the known_hosts file and push it to your users, it shold not take long.\
 The client will check in /etc/ssh/ssh_known_hosts and ~/.ssh/known_hosts. Update these. If any entry matches, the client will accept the connection. Or you could change the name of their personal file. Tell them in advance. Do this to not have conflicting entries.\
 You can use automation to set global OpenSSH configuration. They can still use their personal configuration, though.\
-You may consider using a DNS with Securty Extension to distribute hostnames. I won't go into this section. At least not before I study DNS in details. He has about about it, BTW.\
+You may consider using a DNS with Securty Extension to distribute hostnames. I won't go into this section. At least not before I study DNS in details. He has abook about it, BTW.\
 ### Managing authorized_keys
 Having a centralized distribution system is best practice. If a user wants to upload his file, he must go through an automated system that does integrity check and warns the user of any consequences.\
 Additionally, use the sshd's configuration `AuthorizedKeysFile  /etc/ssh/keys/%u`. This way, an intruder can't edit this file. Use some tool to prevent anyone from writing on this file.\
@@ -230,6 +232,7 @@ Design the system well, you don't want to refactor it when it scales.\
 Store the CA's certs in one directory, like `/usr/local/sshca`.\
 Store the hosts' certs in one directory, and the users' in another. This is less error prone. `/usr/local/sshca/hosts/` and `/usr/local/sshca/users/`.\
 Add a comment to specify the use, and the user of the key.\
+When you renew a CA key, deploy the new one and leave the old one for verification. Remember this. Then, recreate new certs. Then you may disable the old CA key.\
 ### Trusting the CA
 For sshd, it uses certs to validate certs used for authentication. Set a file with all of your trusted certs in a file, and refer to it in sshd_config using `TrustedUserCAKeys`. This file accepts one CA Kpub per line and accepts comments with #.\
 As for ssh, it uses them to validate hosts' Kpubs, store the CA's keys in  ssh_known_hosts, and the others in known_hosts.\
@@ -247,24 +250,34 @@ Review serts by ` ssh-keygen -Lf ssh_host_ed25519_key-cert.pub`\
 The process is mainly the same for user certs. For CRLs, use the sshd_config `RevokedKeys` to refer to the CRL. You may want to inspect KeyRLs in ssh-keygen.\
 SSH certs have extensions too. Extensions are identical to the keywords in authorized_keys file, and server the same purpose. Check them in man ssh-keygen. Here's a key that is only allowed to run one command:\
 `ssh-keygen -s ca_key -I user_backup -n backup -V +52w -O clear -O force-command="/usr/local/scripts/backup.sh" backup.pub`\
-By now, you want to use `AuthorizedKeysFile none` in sshd_config as they're not needed.\
-### RFC 8017
+By now, you want to set `AuthorizedKeysFile` to `none` in sshd_config as they're not needed.\
+### Managing a large-scale system
+You want to use `AuthorizedPrincipals` in sshd_config to allow principals based on their roles, or say groups. You will assign the principals to the certificate as you create it using `-n p1,p2...pn` on the CLI without any spaces.\
+In a larger scale, you want to add `AuthorizedPrincipalsCommand` so that whenever a user logs in, the command fetches a list of authorized principals from a file or a DB.\
+
+## OpenSSH Scraps
+Quote: "Configure SSH key rotation on both the server and the client."\
+Use KexAlgorithms and HostKeyAlgorithms, get rid of the unsafe or unknown defaults.\
+Use `-e` in the CLI to specify an escape character, and use it to temporarily and briefly suspend the SSH session, and may use it to terminate a session. To terminate a session, use `<escape_char>.` Put the dot at the end of the command.\
+You can use the escape char to enter the ssh prompt: `<escape_character>C`. From here, you can adjust some of the SSH settings.
+# RFC 8017, FIPS 186-5, and SP 800-57 Part1 Revision 5's summary.
+## RFC 8017
 All of this is regarding RSA, RSAES-OAEP, and RSASSA-PSS.\n
 Quote: "A generally good cryptographic practice is to employ a given RSA key pair in only one scheme. This avoids the risk that vulnerability in one scheme may compromise the security of the other and may be essential to maintain provable security." They gave examples of using RSASSA-PSS with RSA-SSA-PKCS1-v1_5, and RSA-OEAP with RSAES-PKCS1-v1_5\n
 Quote: "RSAES-OAEP is REQUIRED to be supported for new applications; RSAES-PKCS1-v1_5 is included only for compatibilitywith existing applications." I suppose this is down to the tool to use RSAES-OAEP, and support KCKS1-v1_5. The tool here is OpenSSH.\n
 Quote: "Two signature schemes with appendix are specified in this document: RSASSA-PSS and RSASSA-PKCS1-v1_5. Although no attacks are known against RSASSA-PKCS1-v1_5, in the interest of increased robustness, RSASSA-PSS is REQUIRED in new applications." RSASSA-PKCS1-v1_5 is included only for compatibility.\n
 Quote: "Typical salt lengths in octets are hLen (the length of the outputof the hash function Hash) and 0. In both cases, the security of RSASSA-PSS can be closely related to the hardness of inverting RSAVP1."\n
 Done.\n
-### FIPS 186-5
-#### DSA
+## FIPS 186-5
+### DSA
 Quote: "Prior versions of this standard specified the DSA. This standard no longer approves the DSA for digital signature generation. However, the DSA may be used to verify signatures generated prior to the implementation date of this standard. See FIPS 186-4 [7] for the specifications for the DSA.\n
-#### RSA
+### RSA
 Quote: "An RSA digital signature key pair shall not be used for other purposes (e.g., key establishment)."\n
 Quote: "This standard specifies the use of a modulus whose bit length is an even integer and greater than or equal to 2048 bits. Furthermore, this standard specifies that p and q be of the same bit length –namely, half the bit length of n. The maximum security strength of RSA schemes associated with the bit length of the modulus is specified in NIST SP 800-57, Part 1". They did not say that the two prime numbers be of equal, or fairly equal value.\n
 This document refers a lot to SP 800-57, Part 1 :-). It mentioned Part 3 too.\n
 Quote: "A CA should use a modulus whose length nlen is equal to or greater than the bit-length of every modulus used by its subscribers. For example, if the subscribers are using nlen = 2048, then the CA should use nlen ≥ 2048. SP 800-57, Parts 1 and 3, provide further information about comparable security strength guidance."\n
 Quote: "Prime number generation seeds shall be kept secret or destroyed when the modulus n is computed." Otherwise, kept secret and protected.
-#### ECDSA
+### ECDSA
 Quote: "ECDSA keys shall not be used for any other purpose (e.g., key establishment)."\n
 When it comes to key strength based on the key length, I see that one may need at least a 256 bit long ECDSA key, in order for him to achieve a 128-bit security strength. 128-bit in symmetric cryptography is good enough and is easy on the hardware.\n
 Quote: "Normally, a CA should use a bit length of n whose assessed security strength is equal to or greater than the assessed security strength associated with the bit length of n used by its subscribers."\n
@@ -272,20 +285,20 @@ Quote: "Each key pair shall be correctly associated with one specific set of dom
 A Kpub's duration of use is greater than the Kpriv's duration of use.\n
 ECDSA keys should only be used to sign and verify.\n
 The security strength of the hash function must be equal or greater than the strength of ECDSA. The strength should be the same.\n
-#### EdDSA
+### EdDSA
 Quote: "See SP 800-186 for details on curves approved for use with EdDSA.".\n
 Prehash EdDSA seems more interesting than EdDSA. If I am not mistaken, professor ABBAS recommended this.
 EdDSA is deterministic. Ross Anderson said that randomness is always beneficial in cryptography. But it may be better in environments with insufficient randomness.\n
 Quote: "For Ed25519, SHA-512 shall be used. For Ed448, SHAKE256 (as specified in FIPS 202) shall be used."\n
-### SP 800-57 Part1 Revision 5
-#### Cryptoperiods
+## SP 800-57 Part1 Revision 5
+### Cryptoperiods
 Kpriv-sig and auth: Quote: "a maximum cryptoperiod of about one to three years is recommended."\n
     Kpub-sig-ver and auth: several years. One should consider that, with time, a cryptosystem and a key will get more vulnerable. Signature verefication may continue so long as the Kpriv was used in its cryptoperiod.\n
     Symmetric authentication keys: for sensitive information, one may use one key per information. The originator may use it for a maximum of two years. The recipient may use it to verify for a maximum of three years after the key's no longer in use.\n
     Symmetric encryption: if the key is used to encrypt large voluments of data, it's period should be short, a day to a week. If it encrypts less data over time, it may be longer, up to two years. The recipient should use it for no longer than three years after the period. For keys that are used to encrypt a single emssage or a session, the data may be kept until the data is encrypted nuder a new key, or is destroyed.\n
     Assymetric key-wrapping keys: If the key is used to devlier a lot of keys, it should last for one day to a week. Otherwise, it can be used up to two years.\n
     Symmetric master key: may be one year.\n
-#### Compromise countermeasures
+### Compromise countermeasures
 Don't leave it in plaintext; set access controls; use of physically protected containers, such as HSM; use integrity checks; ensure that the proper key is established; log access to keys; provide a cryptographic integrity check mechanism, such as MACs and dig signatures; use trusted timestamps; destroy keys after period; create a compromise-recovery plan.\n
 Design the system so that the compromsie of one key will have as little damage as possible.\
 The recovery plan should include:
@@ -298,17 +311,17 @@ The recovery plan should include:
     7.  Request key revocation;\
     8.  Monitor re-keying;\
     9.  additions...\
-#### Key length
+### Key length
 RSA : 3072-bit key is estimated be acceptable beyond 2031\
 ECDSA and ECHD: 256-383 is also estimated.\
 DH: Kpub of 3072-bit and Kpriv of 256. estimated.\
 AES: 128. estimated\
 \n
 As for Hash functions: SHA-256, SHA-512/256, and SHA3-256. I consider SHA3 to be better because it is not built on top of MD5. For HMAC, SHA-1 and KMAC128. estimated. I dislike SHA1, go for SHA3-224.\n
-#### Cipher Suits Security
+### Cipher Suits Security
 The strength of a cipher suit is also tied to the key generation process.\n
 Refer to the previous Key Length section.
-#### Considering the future
+### Considering the future
 This is but an estimate.\n
 Go for 128 bit sec strength to be acceptable beyond 2031.\n
 Be flexible, and plan well for the future.
@@ -317,10 +330,10 @@ Talking about the future, quote: "In addition, the recovered plaintext could be 
 You should consider the protection lifetime of your data. If the algorithm security lifetime of an encryption algorithm ends on December 31, 2030, then data with a security life of four years should not be encrypted using that algorithm after December 31, 2026.\n
 Quote: "The process of transitioning to a new algorithm or key size may be as simple as selecting a more secure option in the security suites offered by the current system, or it can be as complex as building an entirely new system."\n
 Quote: "The lessons to be learned are that an encryption mechanism used for information that will be available to unauthorized entities in its encrypted form (e.g., via transmission) should provide a high level of security protection, and the use of each key should be limited (i.e., the cryptoperiod should be short) so that a compromised key cannot be used to reveal very much information. If the algorithm itself is broken, 75 an adversary is forced to perform more work to decrypt all of the information when each key is used to encrypt a very limited amount of information."\n
-#### Key protection
+### Key protection
 IT is always better to use an HSM of FIPS 140 level 4. Level 3 is unacceptable unless fortified.\n
 You should backup your keys for availability.
-#### Pre-operational phase of a key
+### Pre-operational phase of a key
 The key's owner needs to deal with a registration authority to register himsefl in the system. The CA's strength (or weakness) of a security infrastructure will often depend upon the identification process. FIPS 201 and SP 800-63 address requirements for establishing identity.\n 
 With this section, I will surely revise my PKIX project. Insha'Allah.\n
 The CA must have a secure system for operations. It must consider algorithm preferences, the identification of trusted parties, and the definition of domain-parameter policies and any trusted parameters  (e.g., recognized certificate policies).\n
@@ -341,11 +354,11 @@ The public key and information can be supplied some secure ways, some of them ar
     4. The CA may received the information, along with the claimed owner's identity and authorization. It then delegates the verification. It then sends the secret value in a secure manner. If the owner confirms that the trusted process secceeded, the certificate is delivered, and the key is destroyed.
     5. The Kpub and DNS addresses are supplied via network in a CSR. The CA confirms that the subject is authorized to request a cert for that DNS by performing a challenge via DNS record for the addresses, a challenge via HTTP to the DNS addresses, or in some other way.
 As for central distribution, the server must protect the private keys, and the recipient must be authenticated. Similarly, the owner must obtain assurance of key validity and authenticity.
-#### Operational Phase
+### Operational Phase
 When recovering the key, you must determine (1) its type; (2) the application it was used in; (3) whether it's yours or another's; (4) the role of the owner in a communication; and (5) its algorithm and the related operation information.
-#### Post operational phase
+### Post operational phase
 If you de-register an entity, don't use its identifier again to avoid confusion.\
 Regarding symm key compromise, use a Compromised Key List CKL. and a CRL or OCSP with asymm.
-#### Additional considerations
+### Additional considerations
 You must control access to key material. By means of 2FA or digital signatures. See SP 800-63, SP 800-
 130, and SP 800-152 for more.
